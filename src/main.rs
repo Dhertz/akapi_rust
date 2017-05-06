@@ -1,7 +1,8 @@
 extern crate akapi_rust;
 
-use akapi_rust::is_purple_daze_now;
+use akapi_rust::email_if_purple_daze;
 
 fn main() {
-    println!("{}", is_purple_daze_now());
+    email_if_purple_daze();
+    println!("done");
 }

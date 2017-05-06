@@ -5,3 +5,4 @@ authors = ["Daniel Hertz <git@dhertz.com>"]
 
 [dependencies]
 chrono = "0.3"
+lettre = "0.6.2"
