@@ -1,8 +1,9 @@
 extern crate akapi_rust;
 
-use akapi_rust::email_if_purple_daze;
+use akapi_rust::run_purple_mailer;
 
 fn main() {
-    email_if_purple_daze();
+    let t = run_purple_mailer(10);
+    t.join();
     println!("done");
 }

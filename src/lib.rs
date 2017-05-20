@@ -1,6 +1,9 @@
 extern crate chrono;
 extern crate lettre;
 
+use std::thread::{JoinHandle,sleep,spawn};
+use std::time::Duration as StdDuration;
+
 use chrono::{Datelike,DateTime,Duration,Local,Timelike,Weekday};
 use lettre::email::EmailBuilder;
 use lettre::transport::EmailTransport;
@@ -35,13 +38,13 @@ fn is_purple_daze_now() -> bool {
     is_purple_daze(Local::now())
 }
 
-pub fn email_if_purple_daze() {
+fn email_if_purple_daze() {
     let now = Local::now();
     if true | (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
         println!("Is purpledaze tomorrow");
         let email = EmailBuilder::new()
-                            .to(secrets::MY_EMAIL)
-                            .from(secrets::TEST_EMAIL)
+                            .to(secrets::TEST_EMAIL)
+                            .from(secrets::MY_EMAIL)
                             .body("test")
                             .subject("Test")
                             .build()
@@ -57,4 +60,12 @@ pub fn email_if_purple_daze() {
     } else {
         println!("Is not purpledaze tomorrow");
     }
+}
+
+pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
+    let j = spawn(move || {
+        email_if_purple_daze();
+        sleep(StdDuration::from_secs(wait_time));
+    });
+    return j;
 }
