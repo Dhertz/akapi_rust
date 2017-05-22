@@ -43,16 +43,15 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
     let now = Local::now();
     if true | (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
         println!("Is purpledaze tomorrow");
-        let email_builder = EmailBuilder::new()
+        let email = EmailBuilder::new()
                             .to(secrets::TEST_EMAIL)
                             .from(secrets::MY_EMAIL)
                             .body("test")
-                            .subject("Test");
-        let email = try!(email_builder.build());
+                            .subject("Test")
+                            .build()?;
 
-        let mail_builder = try!(SmtpTransportBuilder::localhost());
-        let mut mailer = mail_builder.build();
-        try!(mailer.send(email));
+        let mut mailer = SmtpTransportBuilder::localhost()?.build();
+        mailer.send(email)?;
         println!("Purple Daze reminder sent");
     } else {
         println!("Is not purpledaze tomorrow");
