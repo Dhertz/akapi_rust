@@ -61,14 +61,21 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
 }
 
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
+    job_runner(email_if_purple_daze, wait_time)
+}
+
+fn job_runner<F>(f: F, wait_time: u64) -> JoinHandle<()>
+    where F: 'static + FnOnce() -> Result<(), Box<Error>> + Send + Copy
+{
     let j = spawn(move || {
         loop {
-            match email_if_purple_daze() {
+            match f() {
                 Ok(_) => (),
-                Err(err) => println!("Purple Mailer Failed: {}", err)
+                Err(err) => println!("Thread crashed: {}", err)
             };
             sleep(StdDuration::from_secs(wait_time));
         }
     });
     return j;
 }
+
