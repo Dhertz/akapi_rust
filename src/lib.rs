@@ -59,22 +59,27 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
     Ok(())
 }
 
-pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
-    job_runner(email_if_purple_daze, wait_time)
+trait Job {
+    fn run<F>(f: F, wait_time: u64) -> JoinHandle<()>
+        where F: 'static + FnOnce() -> Result<(), Box<Error>> + Send + Copy
+    {
+        let j = spawn(move || {
+            loop {
+                match f() {
+                    Ok(_) => (),
+                    Err(err) => println!("Thread crashed: {}", err)
+                };
+                sleep(StdDuration::from_secs(wait_time));
+            }
+        });
+        return j;
+    }
 }
 
-fn job_runner<F>(f: F, wait_time: u64) -> JoinHandle<()>
-    where F: 'static + FnOnce() -> Result<(), Box<Error>> + Send + Copy
-{
-    let j = spawn(move || {
-        loop {
-            match f() {
-                Ok(_) => (),
-                Err(err) => println!("Thread crashed: {}", err)
-            };
-            sleep(StdDuration::from_secs(wait_time));
-        }
-    });
-    return j;
+struct StandardJob;
+impl Job for StandardJob {}
+
+pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
+    StandardJob::run(email_if_purple_daze, wait_time)
 }
 
