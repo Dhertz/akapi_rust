@@ -1,6 +1,7 @@
 extern crate chrono;
 extern crate lettre;
 
+use std::error::Error;
 use std::thread::{JoinHandle,sleep,spawn};
 use std::time::Duration as StdDuration;
 
@@ -38,34 +39,36 @@ fn is_purple_daze_now() -> bool {
     is_purple_daze(Local::now())
 }
 
-fn email_if_purple_daze() {
+fn email_if_purple_daze() -> Result<(), Box<Error>> {
     let now = Local::now();
     if true | (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
         println!("Is purpledaze tomorrow");
-        let email = EmailBuilder::new()
+        let email_builder = EmailBuilder::new()
                             .to(secrets::TEST_EMAIL)
                             .from(secrets::MY_EMAIL)
                             .body("test")
-                            .subject("Test")
-                            .build()
-                            .unwrap();
+                            .subject("Test");
+        let email = try!(email_builder.build());
 
-        let mut mailer = SmtpTransportBuilder::localhost().unwrap().build();
-        let result = mailer.send(email);
-        if result.is_ok() {
-            println!("Purple Daze reminder sent");
-        } else {
-            println!("Purple Daze email failed: {:?}", result);
-        }
+        let mail_builder = try!(SmtpTransportBuilder::localhost());
+        let mut mailer = mail_builder.build();
+        try!(mailer.send(email));
+        println!("Purple Daze reminder sent");
     } else {
         println!("Is not purpledaze tomorrow");
     }
+    Ok(())
 }
 
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
     let j = spawn(move || {
-        email_if_purple_daze();
-        sleep(StdDuration::from_secs(wait_time));
+        loop {
+            match email_if_purple_daze() {
+                Ok(_) => (),
+                Err(err) => println!("Purple Mailer Failed: {}", err)
+            };
+            sleep(StdDuration::from_secs(wait_time));
+        }
     });
     return j;
 }
