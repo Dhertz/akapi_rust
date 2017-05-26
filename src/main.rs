@@ -1,9 +1,8 @@
 extern crate akapi_rust;
 
-use akapi_rust::run_purple_mailer;
+use akapi_rust::get_purple_subs;
 
 fn main() {
-    let t = run_purple_mailer(10);
-    t.join();
+    get_purple_subs();
     println!("done");
 }

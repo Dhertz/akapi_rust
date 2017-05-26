@@ -1,6 +1,16 @@
 extern crate chrono;
 extern crate lettre;
 
+extern crate serde;
+extern crate serde_json;
+
+#[macro_use]
+extern crate serde_derive;
+
+use std::fs::File;
+use std::io::BufReader;
+use std::io::Read;
+
 use std::error::Error;
 use std::thread::JoinHandle;
 
@@ -59,6 +69,21 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
         println!("Is not purpledaze tomorrow");
     }
     Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
+struct PurpleSubs {
+    subs: Vec<String>,
+    last_id: String
+}
+
+pub fn get_purple_subs() {
+    let purple_file = File::open("subscribers.txt").unwrap();
+    let mut buf_reader = BufReader::new(purple_file);
+    let mut contents = String::new();
+    buf_reader.read_to_string(&mut contents).unwrap();
+    let decoded: PurpleSubs = serde_json::from_str(&contents).unwrap();
+    println!("{}", serde_json::to_string_pretty(&decoded).unwrap());
 }
 
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
