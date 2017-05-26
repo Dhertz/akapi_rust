@@ -2,15 +2,17 @@ extern crate chrono;
 extern crate lettre;
 
 use std::error::Error;
-use std::thread::{JoinHandle,sleep,spawn};
-use std::time::Duration as StdDuration;
+use std::thread::JoinHandle;
 
 use chrono::{Datelike,DateTime,Duration,Local,Timelike,Weekday};
 use lettre::email::EmailBuilder;
 use lettre::transport::EmailTransport;
 use lettre::transport::smtp::SmtpTransportBuilder;
 
+mod jobs;
 mod secrets;
+
+use jobs::Job;
 
 #[allow(dead_code)]
 enum Month {
@@ -59,52 +61,8 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
     Ok(())
 }
 
-trait Job {
-    fn wait_time(&self) -> u64;
-    fn thread_job(&self) -> fn() -> Result<(), Box<Error>>; 
-    fn run(&self) -> JoinHandle<()>
-    {
-        let wait_time = self.wait_time();
-        let thread_job = self.thread_job();
-        let j = spawn(move || {
-            loop {
-                match thread_job() {
-                    Ok(_) => (),
-                    Err(err) => println!("Thread crashed: {}", err)
-                };
-                sleep(StdDuration::from_secs(wait_time));
-            }
-        });
-        return j;
-    }
-}
-
-
-struct StandardJob {
-    wait_time: u64,
-    thread_job: fn() -> Result<(), Box<Error>>
-}
-
-impl StandardJob {
-    fn new(wait_time: u64, thread_job: fn() -> Result<(), Box<Error>>) -> StandardJob {
-        StandardJob {
-            wait_time: wait_time,
-            thread_job: thread_job
-        }
-    }
-}
-
-impl Job for StandardJob {
-    fn wait_time(&self) -> u64 {
-        self.wait_time
-    }
-    fn thread_job(&self) -> fn() -> Result<(), Box<Error>> {
-        self.thread_job
-    }
-}
-
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
-    let sj = StandardJob::new(wait_time, email_if_purple_daze);
+    let sj = jobs::StandardJob::new(wait_time, email_if_purple_daze);
     sj.run()
 }
 
