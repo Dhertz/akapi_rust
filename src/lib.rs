@@ -60,15 +60,15 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
 }
 
 trait Job {
-    fn new(wait_time: u64) -> Self;
     fn wait_time(&self) -> u64;
-    fn thread_job() -> Result<(), Box<Error>>; 
+    fn thread_job(&self) -> fn() -> Result<(), Box<Error>>; 
     fn run(&self) -> JoinHandle<()>
     {
         let wait_time = self.wait_time();
+        let thread_job = self.thread_job();
         let j = spawn(move || {
             loop {
-                match Self::thread_job() {
+                match thread_job() {
                     Ok(_) => (),
                     Err(err) => println!("Thread crashed: {}", err)
                 };
@@ -81,23 +81,30 @@ trait Job {
 
 
 struct StandardJob {
-    wait_time: u64
+    wait_time: u64,
+    thread_job: fn() -> Result<(), Box<Error>>
+}
+
+impl StandardJob {
+    fn new(wait_time: u64, thread_job: fn() -> Result<(), Box<Error>>) -> StandardJob {
+        StandardJob {
+            wait_time: wait_time,
+            thread_job: thread_job
+        }
+    }
 }
 
 impl Job for StandardJob {
-    fn new(wait_time: u64) -> StandardJob {
-        StandardJob { wait_time : wait_time }
-    }
     fn wait_time(&self) -> u64 {
         self.wait_time
     }
-    fn thread_job() -> Result<(), Box<Error>> {
-        email_if_purple_daze()
+    fn thread_job(&self) -> fn() -> Result<(), Box<Error>> {
+        self.thread_job
     }
 }
 
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
-    let sj = StandardJob::new(wait_time);
+    let sj = StandardJob::new(wait_time, email_if_purple_daze);
     sj.run()
 }
 
