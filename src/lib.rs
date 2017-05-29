@@ -1,6 +1,8 @@
 extern crate chrono;
 extern crate lettre;
 
+extern crate reqwest;
+
 extern crate serde;
 extern crate serde_json;
 
@@ -15,6 +17,7 @@ use std::error::Error;
 use std::thread::JoinHandle;
 
 use chrono::{Datelike,DateTime,Duration,Local,Timelike,Weekday};
+use reqwest::header::{Headers, Authorization, Basic};
 use lettre::email::EmailBuilder;
 use lettre::transport::EmailTransport;
 use lettre::transport::smtp::SmtpTransportBuilder;
@@ -23,6 +26,24 @@ mod jobs;
 mod secrets;
 
 use jobs::Job;
+
+pub fn twilio_client() {
+    let tw_client = reqwest::Client::new().unwrap();
+    let url = "https://api.twilio.com/2010-04-01/Accounts/".to_owned() + secrets::TW_ACC_ID + "/Messages.json?To=" + secrets::TW_NUMBER;
+    println!("{}", url);
+    let mut res = tw_client.get(&url).header(
+        Authorization(
+            Basic {
+                username: secrets::TW_SID.to_owned(),
+                password: Some(secrets::TW_KEY.to_owned())
+            }
+        )
+    ).send().unwrap();
+    let mut buf = BufReader::new(res);
+    let mut json_str = String::new();
+    buf.read_to_string(&mut json_str).unwrap();
+    println!("{}", json_str);
+}
 
 #[allow(dead_code)]
 enum Month {
