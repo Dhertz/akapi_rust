@@ -77,13 +77,13 @@ struct PurpleSubs {
     last_id: String
 }
 
-pub fn get_purple_subs() {
-    let purple_file = File::open("subscribers.txt").unwrap();
-    let mut buf_reader = BufReader::new(purple_file);
-    let mut contents = String::new();
-    buf_reader.read_to_string(&mut contents).unwrap();
-    let decoded: PurpleSubs = serde_json::from_str(&contents).unwrap();
-    println!("{}", serde_json::to_string_pretty(&decoded).unwrap());
+fn get_purple_subs() -> Result<PurpleSubs, Box<Error>>{
+    let purple_file = File::open("subscribers.txt")?;
+    let mut buf = BufReader::new(purple_file);
+    let mut json_str = String::new();
+    buf.read_to_string(&mut json_str)?;
+    let decoded_json: PurpleSubs = serde_json::from_str(&json_str)?;
+    Ok(decoded_json)
 }
 
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
