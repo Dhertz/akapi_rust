@@ -15,34 +15,83 @@ use std::io::Read;
 
 use std::error::Error;
 use std::thread::JoinHandle;
+use std::collections::{HashMap,HashSet};
 
 use chrono::{Datelike,DateTime,Duration,Local,Timelike,Weekday};
-use reqwest::header::{Headers, Authorization, Basic};
+use reqwest::Method::{Get, Post};
 use lettre::email::EmailBuilder;
 use lettre::transport::EmailTransport;
 use lettre::transport::smtp::SmtpTransportBuilder;
+use serde::Serialize;
+use serde_json::Value;
 
 mod jobs;
 mod secrets;
 
 use jobs::Job;
 
-pub fn twilio_client() {
+fn twilio_request<T: Serialize>(method: reqwest::Method, url_params: Option<String>, form_data: Option<&T>) -> Value {
     let tw_client = reqwest::Client::new().unwrap();
-    let url = "https://api.twilio.com/2010-04-01/Accounts/".to_owned() + secrets::TW_ACC_ID + "/Messages.json?To=" + secrets::TW_NUMBER;
+    let mut url = "https://api.twilio.com/2010-04-01/Accounts/".to_owned() + secrets::TW_ACC_ID + "/Messages.json";
+    match url_params {
+        Some(url_params) => url = url + "?" + &url_params,
+        None => ()
+    };
     println!("{}", url);
-    let mut res = tw_client.get(&url).header(
-        Authorization(
-            Basic {
-                username: secrets::TW_SID.to_owned(),
-                password: Some(secrets::TW_KEY.to_owned())
-            }
-        )
-    ).send().unwrap();
-    let mut buf = BufReader::new(res);
+    let mut res = tw_client
+        .request(method, &url)
+        .basic_auth(secrets::TW_UID.to_owned(), Some(secrets::TW_KEY.to_owned()));
+
+    match form_data {
+        Some(form_data) => res = res.form(form_data),
+        None => ()
+    };
     let mut json_str = String::new();
-    buf.read_to_string(&mut json_str).unwrap();
-    println!("{}", json_str);
+    res.send().unwrap().read_to_string(&mut json_str).unwrap();
+    let json_resp = serde_json::from_str(&json_str).unwrap();
+    println!("{}", json_resp);
+    json_resp
+}
+
+pub fn twilio_get(url_params: String) -> Value {
+    let opt_url_params = match url_params.as_ref() {
+        "" => None,
+        _  => Some(url_params)
+    };
+    twilio_request(Get, opt_url_params, None::<&String>)
+}
+
+pub fn twilio_post<T: Serialize>(form_data: &T) -> Value {
+    let opt_form_data = Some(form_data);
+    twilio_request(Post, None, opt_form_data)
+}
+
+pub fn manage_sms_subs() {
+    let messages = twilio_get("To".to_owned() + secrets::TW_NUMBER);
+    let mut subscribers = PurpleSubs::new("subscribers.txt".to_string()).unwrap();
+    let last_id = subscribers.last_id();
+
+    // Make a mutable copy of subscribers so we can add or remove from it if needed
+    let mut_subs = &mut subscribers;
+    let mut messages_to_send = HashMap::new();
+
+    for message in messages["messages"].as_array().unwrap() {
+        let from_num = message["from"].as_str().unwrap();
+        if message["sid"].as_str().unwrap() == last_id {
+            break;
+        }
+       let response = match message["body"].as_str().unwrap() {
+            "subscribe" | "start" => mut_subs.add(from_num),
+            "stop" | "unsubscribe" | "no" => mut_subs.remove(from_num),
+            _ => "Weird!".to_string()
+        };
+        messages_to_send.insert(from_num, response);
+    }
+    mut_subs.set_last_id(messages["messages"][0]["sid"].as_str().unwrap().to_string());
+    mut_subs.save();
+    for (number, response) in messages_to_send {
+        twilio_post(&[("To", number), ("MessagingServiceSid", secrets::TW_SID), ("Body", &response)]);
+    }
 }
 
 #[allow(dead_code)]
@@ -94,17 +143,45 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
 
 #[derive(Serialize, Deserialize)]
 struct PurpleSubs {
-    subs: Vec<String>,
+    subs: HashSet<String>,
     last_id: String
 }
 
-fn get_purple_subs() -> Result<PurpleSubs, Box<Error>>{
-    let purple_file = File::open("subscribers.txt")?;
-    let mut buf = BufReader::new(purple_file);
-    let mut json_str = String::new();
-    buf.read_to_string(&mut json_str)?;
-    let decoded_json: PurpleSubs = serde_json::from_str(&json_str)?;
-    Ok(decoded_json)
+impl PurpleSubs {
+    fn new(filename: String) -> Result<Self, Box<Error>> {
+        let purple_file = File::open(filename)?;
+        let mut buf = BufReader::new(purple_file);
+        let mut json_str = String::new();
+        buf.read_to_string(&mut json_str)?;
+        Ok(serde_json::from_str(&json_str)?)
+    }
+    fn add(&mut self, subscriber: &str) -> String {
+        let sub = subscriber.to_string();
+        if !self.subs.contains(&sub) {
+            self.subs.insert(sub);
+            return "Welcome !".to_string()
+        } else {
+            return "You're already signed up!".to_string()
+        }
+    }
+    fn remove(&mut self, subscriber: &str) -> String {
+        if self.subs.contains(&subscriber.to_string()) {
+            self.subs.remove(&subscriber.to_string());
+            return "Sorry to see you go!".to_string();
+        } else {
+            return "You weren't even on the list!".to_string();
+        }
+    }
+    fn save(&self) {
+        //let json = serde_json::to_json(self.data);
+        //write json
+    }
+    fn set_last_id(&mut self, last_id: String) {
+        self.last_id = last_id;
+    }
+    fn last_id(&self) -> String {
+        self.last_id.clone()
+    }
 }
 
 pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
