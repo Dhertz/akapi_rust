@@ -67,7 +67,7 @@ pub fn twilio_post<T: Serialize>(form_data: &T) -> Value {
 }
 
 pub fn manage_sms_subs() {
-    let messages = twilio_get("To".to_owned() + secrets::TW_NUMBER);
+    let messages = twilio_get("To=".to_owned() + secrets::TW_NUMBER);
     let mut subscribers = PurpleSubs::new("subscribers.txt".to_string()).unwrap();
     let last_id = subscribers.last_id();
 
