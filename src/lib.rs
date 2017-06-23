@@ -12,6 +12,7 @@ extern crate serde_derive;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
+use std::io::Write;
 
 use std::error::Error;
 use std::thread::JoinHandle;
@@ -95,7 +96,7 @@ pub fn manage_sms_subs() -> Result<(), Box<Error>> {
     let messages = twilio_get("To=".to_owned() + secrets::TW_NUMBER)?;
     let mut subscribers = PurpleSubs::new("subscribers.txt".to_string())?;
     let (mut_subs, messages_to_send) = gen_subs_and_messages(subscribers, messages)?;
-    mut_subs.save();
+    mut_subs.save("subscribers.txt".to_string())?;
     for (number, response) in messages_to_send {
         twilio_post(&[("To", number), ("MessagingServiceSid", secrets::TW_SID.to_owned()), ("Body", response)])?;
     }
@@ -180,9 +181,11 @@ impl PurpleSubs {
             return "You weren't even on the list!".to_string();
         }
     }
-    fn save(&self) {
-        //let json = serde_json::to_json(self.data);
-        //write json
+    fn save(&self, filename: String) -> Result<(), Box<Error>>{
+        let json = serde_json::to_string(&self)?;
+        let mut f = File::create(filename)?;
+        f.write_all(json.as_bytes())?;
+        Ok(())
     }
     fn set_last_id(&mut self, last_id: String) {
         self.last_id = last_id;
