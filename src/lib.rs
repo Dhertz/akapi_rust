@@ -80,7 +80,7 @@ fn gen_subs_and_messages(mut subscribers: PurpleSubs, messages: Value) -> Result
         if tw_option(message["sid"].as_str())? == last_id {
             break;
         }
-       let response = match tw_option(message["body"].as_str())? {
+        let response = match tw_option(message["body"].as_str())?.to_lowercase().as_ref() {
             "subscribe" | "start" => mut_subs.add(from_num),
             "stop" | "unsubscribe" | "no" => mut_subs.remove(from_num),
             _ => "Weird!".to_string()
