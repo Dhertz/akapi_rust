@@ -66,13 +66,10 @@ pub fn twilio_post<T: Serialize>(form_data: &T) -> Value {
     twilio_request(Post, None, opt_form_data)
 }
 
-pub fn manage_sms_subs() {
-    let messages = twilio_get("To=".to_owned() + secrets::TW_NUMBER);
-    let mut subscribers = PurpleSubs::new("subscribers.txt".to_string()).unwrap();
+fn gen_subs_and_messages(mut subscribers: PurpleSubs, messages: Value) -> (PurpleSubs, HashMap<String, String>) {
     let last_id = subscribers.last_id();
-
     // Make a mutable copy of subscribers so we can add or remove from it if needed
-    let mut_subs = &mut subscribers;
+    let mut mut_subs = subscribers;
     let mut messages_to_send = HashMap::new();
 
     for message in messages["messages"].as_array().unwrap() {
@@ -85,12 +82,19 @@ pub fn manage_sms_subs() {
             "stop" | "unsubscribe" | "no" => mut_subs.remove(from_num),
             _ => "Weird!".to_string()
         };
-        messages_to_send.insert(from_num, response);
+        messages_to_send.insert(from_num.to_string(), response.to_string());
     }
     mut_subs.set_last_id(messages["messages"][0]["sid"].as_str().unwrap().to_string());
+    (mut_subs, messages_to_send)
+}
+
+pub fn manage_sms_subs() {
+    let messages = twilio_get("To=".to_owned() + secrets::TW_NUMBER);
+    let mut subscribers = PurpleSubs::new("subscribers.txt".to_string()).unwrap();
+    let (mut_subs, messages_to_send) = gen_subs_and_messages(subscribers, messages);
     mut_subs.save();
     for (number, response) in messages_to_send {
-        twilio_post(&[("To", number), ("MessagingServiceSid", secrets::TW_SID), ("Body", &response)]);
+        twilio_post(&[("To", number), ("MessagingServiceSid", secrets::TW_SID.to_owned()), ("Body", response)]);
     }
 }
 
