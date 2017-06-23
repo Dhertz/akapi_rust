@@ -37,7 +37,6 @@ fn twilio_request<T: Serialize>(method: reqwest::Method, url_params: Option<Stri
     if let Some(url_params) = url_params {
         url = url + "?" + &url_params;
     };
-    println!("{}", url);
     let mut res = tw_client
         .request(method, &url)
         .basic_auth(secrets::TW_UID.to_owned(), Some(secrets::TW_KEY.to_owned()));
@@ -168,6 +167,7 @@ impl PurpleSubs {
         let sub = subscriber.to_string();
         if !self.subs.contains(&sub) {
             self.subs.insert(sub);
+            println!("Adding {} to subs", sub);
             return "Welcome !".to_string()
         } else {
             return "You're already signed up!".to_string()
@@ -176,6 +176,7 @@ impl PurpleSubs {
     fn remove(&mut self, subscriber: &str) -> String {
         if self.subs.contains(&subscriber.to_string()) {
             self.subs.remove(&subscriber.to_string());
+            println!("Removing {} to subs", sub);
             return "Sorry to see you go!".to_string();
         } else {
             return "You weren't even on the list!".to_string();
