@@ -99,10 +99,6 @@ fn is_purple_daze(dt: DateTime<Local>) -> bool {
     is_purple_wed || is_purple_thu || is_purple_fri
 }
 
-fn is_purple_daze_now() -> bool {
-    is_purple_daze(Local::now())
-}
-
 fn email_if_purple_daze() -> Result<(), Box<Error>> {
     let now = Local::now();
     if (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
