@@ -1,8 +1,12 @@
 extern crate akapi_rust;
 
-use akapi_rust::get_purple_subs;
-
 fn main() {
-    get_purple_subs();
+    let mut threads = Vec::new();
+    threads.push(akapi_rust::run_purple_mailer(3600));
+    threads.push(akapi_rust::run_purple_subs(120));
+    threads.push(akapi_rust::run_purple_texter(3600));
+    for thread in threads {
+        thread.join().unwrap();
+    }
     println!("done");
 }

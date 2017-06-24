@@ -19,87 +19,61 @@ use std::thread::JoinHandle;
 use std::collections::{HashMap,HashSet};
 
 use chrono::{Datelike,DateTime,Duration,Local,Timelike,Weekday};
-use reqwest::Method::{Get, Post};
 use lettre::email::EmailBuilder;
 use lettre::transport::EmailTransport;
 use lettre::transport::smtp::SmtpTransportBuilder;
-use serde::Serialize;
 use serde_json::Value;
 
 mod jobs;
 mod secrets;
+mod twilio;
 
 use jobs::Job;
 
-fn twilio_request<T: Serialize>(method: reqwest::Method, url_params: Option<String>, form_data: Option<&T>) -> Result<Value, Box<Error>> {
-    let tw_client = reqwest::Client::new()?;
-    let mut url = "https://api.twilio.com/2010-04-01/Accounts/".to_owned() + secrets::TW_ACC_ID + "/Messages.json";
-    if let Some(url_params) = url_params {
-        url = url + "?" + &url_params;
-    };
-    let mut res = tw_client
-        .request(method, &url)
-        .basic_auth(secrets::TW_UID.to_owned(), Some(secrets::TW_KEY.to_owned()));
+const NEW_SUB_MSG:&str = "Thanks for subscribing to Puple Daze text updates. I'll be sure to let you know when to dress up!💃";
+const OLD_SUB_MSG:&str = "Woah there eager beaver, looks like you are already on the VIP list! I'll make sure you get special treatment though.";
+const UNSUB_MSG:&str = "Oh no!, I am sorry to see you go, but I will no longer remind you to encounter the Purple Daze 😔.";
+const NOT_SUBD:&str = "Don't worry, you weren't even included yet. I'm not hurt, I didn't like the look of your phone number anyway.";
+const WEIRD_MSG:&str = "Hmm. Not quite sure I know what you mean! 🤔 Respond with start to subscribe to notifications of Purple Daze or stop to unsubscribe.";
 
-    if let Some(form_data) = form_data {
-        res = res.form(form_data);
-    };
-    let mut json_str = String::new();
-    res.send()?.read_to_string(&mut json_str)?;
-    let json_resp = serde_json::from_str(&json_str)?;
-    Ok(json_resp)
-}
+const EMAIL_BODY:&str = "We're back! Coming to you from a new, possibly shiny RUST implementation of the complex proprietary PurpleDaze™️  algorithm,\
+ here is your regularly schedulded reminder:
+ Remember to wearone of your finest purple garments tomorrow.
 
-pub fn twilio_get(url_params: String) -> Result<Value, Box<Error>> {
-    let opt_url_params = match url_params.as_ref() {
-        "" => None,
-        _  => Some(url_params)
-    };
-    twilio_request(Get, opt_url_params, None::<&String>)
-}
+ Do you need an extra reminder tomorrow morning? I can send you a SMS! Sign up by texting START to {{NUMBER}}
+ As it has been a while, please re-subscribe yourself to the SMS service if you wish to continue receiving alerts.";
 
-pub fn twilio_post<T: Serialize>(form_data: &T) -> Result<Value, Box<Error>> {
-    let opt_form_data = Some(form_data);
-    twilio_request(Post, None, opt_form_data)
-}
-
-fn tw_option<T>(opt: Option<T>) -> Result<T, String> {
-    match opt {
-        Some(opt) => Ok(opt),
-        None => Err("Weird Twilio JSON".to_string())
-    }
-}
-
-fn gen_subs_and_messages(mut subscribers: PurpleSubs, messages: Value) -> Result<(PurpleSubs, HashMap<String, String>), Box<Error>> {
+fn gen_subs_and_messages(subscribers: PurpleSubs, messages: Value) -> Result<(PurpleSubs, HashMap<String, String>), Box<Error>> {
     let last_id = subscribers.last_id();
     // Make a mutable copy of subscribers so we can add or remove from it if needed
     let mut mut_subs = subscribers;
     let mut messages_to_send = HashMap::new();
-    for message in tw_option(messages["messages"].as_array())? {
-        let from_num = tw_option(message["from"].as_str())?;
-        if tw_option(message["sid"].as_str())? == last_id {
+    for message in twilio::option(messages["messages"].as_array())? {
+        let from_num = twilio::option(message["from"].as_str())?;
+        if twilio::option(message["sid"].as_str())? == last_id {
             break;
         }
-        let response = match tw_option(message["body"].as_str())?.to_lowercase().as_ref() {
+        let response = match twilio::option(message["body"].as_str())?.to_lowercase().as_ref() {
             "subscribe" | "start" => mut_subs.add(from_num),
             "stop" | "unsubscribe" | "no" => mut_subs.remove(from_num),
-            _ => "Weird!".to_string()
+            _ => WEIRD_MSG.to_string()
         };
         messages_to_send.insert(from_num.to_string(), response.to_string());
     }
-    mut_subs.set_last_id(tw_option(messages["messages"][0]["sid"].as_str())?.to_string());
+    mut_subs.set_last_id(twilio::option(messages["messages"][0]["sid"].as_str())?.to_string());
     Ok((mut_subs, messages_to_send))
 }
 
-pub fn manage_sms_subs() -> Result<(), Box<Error>> {
-    let messages = twilio_get("To=".to_owned() + secrets::TW_NUMBER)?;
-    let mut subscribers = PurpleSubs::new("subscribers.txt".to_string())?;
+fn manage_sms_subs() -> Result<PurpleSubs, Box<Error>> {
+    println!("Checking for new subscribers");
+    let messages = twilio::get("To=".to_owned() + secrets::TW_NUMBER)?;
+    let subscribers = PurpleSubs::new("subscribers.txt".to_string())?;
     let (mut_subs, messages_to_send) = gen_subs_and_messages(subscribers, messages)?;
     mut_subs.save("subscribers.txt".to_string())?;
     for (number, response) in messages_to_send {
-        twilio_post(&[("To", number), ("MessagingServiceSid", secrets::TW_SID.to_owned()), ("Body", response)])?;
+        twilio::post(&[("To", number), ("MessagingServiceSid", secrets::TW_SID.to_string()), ("Body", response.to_string())])?;
     }
-    Ok(())
+    Ok(mut_subs)
 }
 
 #[allow(dead_code)]
@@ -131,13 +105,13 @@ fn is_purple_daze_now() -> bool {
 
 fn email_if_purple_daze() -> Result<(), Box<Error>> {
     let now = Local::now();
-    if true | (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
+    if (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
         println!("Is purpledaze tomorrow");
         let email = EmailBuilder::new()
-                            .to(secrets::TEST_EMAIL)
+                            .to(secrets::PURPLE_EMAIL)
                             .from(secrets::MY_EMAIL)
-                            .body("test")
-                            .subject("Test")
+                            .body(&EMAIL_BODY.replace("{{NUMBER}}", secrets::TW_NUMBER))
+                            .subject("Purple Daze Incoming!")
                             .build()?;
 
         let mut mailer = SmtpTransportBuilder::localhost()?.build();
@@ -145,6 +119,27 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
         println!("Purple Daze reminder sent");
     } else {
         println!("Is not purpledaze tomorrow");
+    }
+    Ok(())
+}
+
+fn manage_purple_subs() -> Result<(), Box<Error>> {
+    manage_sms_subs()?;
+    Ok(())
+}
+
+fn text_if_purple_daze() -> Result<(), Box<Error>> {
+    let subs = manage_sms_subs()?.subs;
+    let now = Local::now();
+    if (now.hour() == 7) & is_purple_daze(now) {
+        println!("Is purpledaze today!");
+        let reminder = "Remember it is Purple Daze today!".to_string();
+        for sub in subs {
+            twilio::post(&[("To", sub), ("MessagingServiceSid", secrets::TW_SID.to_string()), ("Body", reminder.to_string())])?;
+        }
+        println!("Purple Daze text sent");
+    } else {
+        println!("Is not purpledaze today");
     }
     Ok(())
 }
@@ -166,20 +161,21 @@ impl PurpleSubs {
     fn add(&mut self, subscriber: &str) -> String {
         let sub = subscriber.to_string();
         if !self.subs.contains(&sub) {
-            self.subs.insert(sub);
             println!("Adding {} to subs", sub);
-            return "Welcome !".to_string()
+            self.subs.insert(sub);
+            return NEW_SUB_MSG.to_string()
         } else {
-            return "You're already signed up!".to_string()
+            return OLD_SUB_MSG.to_string()
         }
     }
     fn remove(&mut self, subscriber: &str) -> String {
-        if self.subs.contains(&subscriber.to_string()) {
-            self.subs.remove(&subscriber.to_string());
-            println!("Removing {} to subs", sub);
-            return "Sorry to see you go!".to_string();
+        let sub = subscriber.to_string();
+        if self.subs.contains(&sub) {
+            println!("Removing {} from subs", sub);
+            self.subs.remove(&sub);
+            return UNSUB_MSG.to_string();
         } else {
-            return "You weren't even on the list!".to_string();
+            return NOT_SUBD.to_string();
         }
     }
     fn save(&self, filename: String) -> Result<(), Box<Error>>{
@@ -201,3 +197,14 @@ pub fn run_purple_mailer(wait_time: u64) -> JoinHandle<()> {
     sj.run()
 }
 
+
+pub fn run_purple_subs(wait_time: u64) -> JoinHandle<()> {
+    let sj = jobs::StandardJob::new(wait_time, manage_purple_subs);
+    sj.run()
+}
+
+
+pub fn run_purple_texter(wait_time: u64) -> JoinHandle<()> {
+    let sj = jobs::StandardJob::new(wait_time, text_if_purple_daze);
+    sj.run()
+}
