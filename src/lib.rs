@@ -95,13 +95,13 @@ enum Month {
 fn is_purple_daze(dt: DateTime<Local>) -> bool {
     let is_purple_wed = (dt.weekday() == Weekday::Wed) && (3 < dt.day()) && (dt.day() < 11);
     let is_purple_thu = (dt.weekday() == Weekday::Thu) && (21 == dt.day()) && (dt.month() == Month::Nov as u32);
-    let is_purple_fri = (dt.weekday() == Weekday::Fri) && (dt.day() < 6) || (dt.day() > 12);
+    let is_purple_fri = (dt.weekday() == Weekday::Fri) && ((dt.day() < 6) || (dt.day() > 12));
     is_purple_wed || is_purple_thu || is_purple_fri
 }
 
 fn email_if_purple_daze() -> Result<(), Box<Error>> {
     let now = Local::now();
-    if (now.hour() == 17) & is_purple_daze(now + Duration::days(1)) {
+    if (now.hour() == 17) && is_purple_daze(now + Duration::days(1)) {
         println!("Is purpledaze tomorrow");
         let email = EmailBuilder::new()
                             .to(secrets::PURPLE_EMAIL)
@@ -127,7 +127,7 @@ fn manage_purple_subs() -> Result<(), Box<Error>> {
 fn text_if_purple_daze() -> Result<(), Box<Error>> {
     let subs = manage_sms_subs()?.subs;
     let now = Local::now();
-    if (now.hour() == 7) & is_purple_daze(now) {
+    if (now.hour() == 7) && is_purple_daze(now) {
         println!("Is purpledaze today!");
         let reminder = "Remember it is Purple Daze today!".to_string();
         for sub in subs {
