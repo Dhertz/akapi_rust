@@ -20,6 +20,7 @@ use std::collections::{HashMap,HashSet};
 
 use chrono::{Datelike,DateTime,Duration,Local,Timelike,Weekday};
 use lettre::email::EmailBuilder;
+use lettre::transport::smtp::SMTP_PORT;
 use lettre::transport::EmailTransport;
 use lettre::transport::smtp::SmtpTransportBuilder;
 use serde_json::Value;
@@ -38,7 +39,7 @@ const WEIRD_MSG:&str = "Hmm. Not quite sure I know what you mean! 🤔 Respond w
 
 const EMAIL_BODY:&str = "We're back! Coming to you from a new, possibly shiny RUST implementation of the complex proprietary PurpleDaze™️  algorithm,\
  here is your regularly schedulded reminder:
- Remember to wearone of your finest purple garments tomorrow.
+ Remember to wear one of your finest purple garments tomorrow.
 
  Do you need an extra reminder tomorrow morning? I can send you a SMS! Sign up by texting START to {{NUMBER}}
  As it has been a while, please re-subscribe yourself to the SMS service if you wish to continue receiving alerts.";
@@ -110,7 +111,7 @@ fn email_if_purple_daze() -> Result<(), Box<Error>> {
                             .subject("Purple Daze Incoming!")
                             .build()?;
 
-        let mut mailer = SmtpTransportBuilder::localhost()?.build();
+        let mut mailer = SmtpTransportBuilder::new((secrets::SMTP_HOST, SMTP_PORT))?.build();
         mailer.send(email)?;
         println!("Purple Daze reminder sent");
     } else {
