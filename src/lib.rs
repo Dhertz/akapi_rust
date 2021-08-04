@@ -31,14 +31,12 @@ mod twilio;
 
 use jobs::Job;
 
-const NEW_SUB_MSG:&str = "Thanks for subscribing to Puple Daze text updates. I'll be sure to let you know when to dress up!💃";
+const NEW_SUB_MSG:&str = "Thanks for subscribing to Purple Daze text updates. I'll be sure to let you know when to dress up! 💃";
 const OLD_SUB_MSG:&str = "Woah there eager beaver, looks like you are already on the VIP list! I'll make sure you get special treatment though.";
-const UNSUB_MSG:&str = "Oh no!, I am sorry to see you go, but I will no longer remind you to encounter the Purple Daze 😔.";
+const UNSUB_MSG:&str = "Oh no!, I am sorry to see you go, but I will no longer remind you to encounter the Purple Daze. 😔";
 const NOT_SUBD:&str = "Don't worry, you weren't even included yet. I'm not hurt, I didn't like the look of your phone number anyway.";
 const WEIRD_MSG:&str = "Hmm. Not quite sure I know what you mean! 🤔 Respond with start to subscribe to notifications of Purple Daze or stop to unsubscribe.";
-
-const EMAIL_BODY:&str = "We're back! Coming to you from a new, possibly shiny RUST implementation of the complex proprietary PurpleDaze™️  algorithm,\
- here is your regularly schedulded reminder:
+const EMAIL_BODY:&str = "We're back! Coming to you from a new, possibly shiny RUST implementation of the complex proprietary Purple Daze™ algorithm, here is your regularly scheduled reminder:
  Remember to wear one of your finest purple garments tomorrow.
 
  Do you need an extra reminder tomorrow morning? I can send you a SMS! Sign up by texting START to {{NUMBER}}
