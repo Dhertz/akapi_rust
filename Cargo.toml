@@ -1,6 +1,6 @@
 [package]
 name = "akapi_rust"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Daniel Hertz <git@dhertz.com>"]
 
 [dependencies]
